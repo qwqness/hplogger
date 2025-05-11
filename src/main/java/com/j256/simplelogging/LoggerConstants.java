@@ -66,6 +66,37 @@ public class LoggerConstants {
 	 */
 	public static final String LOCAL_LOG_FILE_PROPERTY = "com.j256.simplelogging.file";
 
+	// --- High-Performance FileLogBackend Configuration Constants ---
+	/**
+	 * System property or properties file key to set the log file path for the high-performance backend.
+	 * Example: "logs/my-app.log"
+	 */
+	public static final String HIGH_PERF_LOG_FILE_PROPERTY = "com.j256.simplelogging.highperf.file.path";
+	/**
+	 * Default log file path if not configured.
+	 */
+	public static final String HIGH_PERF_LOG_FILE_DEFAULT = "hplogger-output.log";
+
+	/**
+	 * System property or properties file key to set the batch size for flushing logs.
+	 * Example: 200
+	 */
+	public static final String HIGH_PERF_BATCH_SIZE_PROPERTY = "com.j256.simplelogging.highperf.batch.size";
+	/**
+	 * Default batch size if not configured.
+	 */
+	public static final int HIGH_PERF_BATCH_SIZE_DEFAULT = 200;
+
+	/**
+	 * System property or properties file key to set the flush interval in milliseconds.
+	 * Example: 5000 (for 5 seconds)
+	 */
+	public static final String HIGH_PERF_FLUSH_INTERVAL_PROPERTY = "com.j256.simplelogging.highperf.flush.intervalms";
+	/**
+	 * Default flush interval in milliseconds if not configured.
+	 */
+	public static final long HIGH_PERF_FLUSH_INTERVAL_DEFAULT = 5000L;
+
 	private LoggerConstants() {
 		// only here for static usage
 	}

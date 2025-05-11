@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.Properties;
 
 /**
  * Utilities class for dealing with the simplelogging properties file.
@@ -31,6 +32,8 @@ public class PropertyUtils {
 
 	/** properties path that we will read from, exposed for testing purposes */
 	private static InputStream propertiesInputStream;
+
+	private static final String PROPERTIES_FILE = "simplelogging.properties";
 
 	/**
 	 * Read the backend property from the properties file returning the backend type or null if none.
@@ -153,9 +156,20 @@ public class PropertyUtils {
 		PropertyUtils.propertiesInputStream = propertiesInputStream;
 	}
 
-	private static List<String[]> getProperties(LogBackendFactory defaultBackend) {
+	private static List<String[]> getProperties(LogBackendFactory defaultBackendFactory) {
 		if (propertyEntries == null) {
-			propertyEntries = readPropertiesFile(defaultBackend);
+			propertyEntries = new ArrayList<>();
+			try (InputStream stream = PropertyUtils.class.getClassLoader().getResourceAsStream(PROPERTIES_FILE)) {
+				if (stream != null) {
+					Properties props = new Properties();
+					props.load(stream);
+					for (String name : props.stringPropertyNames()) {
+						propertyEntries.add(new String[] { name, props.getProperty(name) });
+					}
+				}
+			} catch (IOException e) {
+				logWarning(defaultBackendFactory, "Could not load properties file: " + PROPERTIES_FILE, e);
+			}
 		}
 		return propertyEntries;
 	}
@@ -163,7 +177,7 @@ public class PropertyUtils {
 	/**
 	 * Clear the loaded properties. Here for testing purposes.
 	 */
-	static void clearProperties() {
+	public static void clearProperties() {
 		propertyEntries = null;
 	}
 
@@ -219,12 +233,14 @@ public class PropertyUtils {
 		}
 	}
 
-	private static void logWarning(LogBackendFactory defaultBackendFactory, String msg, Throwable th) {
-		LogBackend backend = defaultBackendFactory.createLogBackend(PropertyUtils.class.getName());
-		if (th == null) {
-			backend.log(Level.WARNING, msg);
-		} else {
-			backend.log(Level.WARNING, msg, th);
+	private static void logWarning(LogBackendFactory factory, String message, Throwable t) {
+		if (factory != null) {
+			LogBackend backend = factory.createLogBackend(PropertyUtils.class.getName());
+			if (t == null) {
+				backend.log(Level.WARNING, message);
+			} else {
+				backend.log(Level.WARNING, message, t);
+			}
 		}
 	}
 
@@ -247,5 +263,54 @@ public class PropertyUtils {
 		public Level getLevel() {
 			return level;
 		}
+	}
+
+	/**
+	 * 从系统属性或属性文件中读取字符串配置
+	 */
+	public static String readStringProperty(String propertyName, String defaultValue, LogBackendFactory defaultBackendFactoryForLogging) {
+		String value = System.getProperty(propertyName);
+		if (value != null) {
+			return value;
+		}
+		List<String[]> props = getProperties(defaultBackendFactoryForLogging);
+		for (String[] entry : props) {
+			if (propertyName.equals(entry[0])) {
+				return entry[1];
+			}
+		}
+		return defaultValue;
+	}
+
+	/**
+	 * 从系统属性或属性文件中读取整数配置
+	 */
+	public static int readIntProperty(String propertyName, int defaultValue, LogBackendFactory defaultBackendFactoryForLogging) {
+		String valueStr = readStringProperty(propertyName, null, defaultBackendFactoryForLogging);
+		if (valueStr != null) {
+			try {
+				return Integer.parseInt(valueStr);
+			} catch (NumberFormatException e) {
+				logWarning(defaultBackendFactoryForLogging,
+						"Could not parse integer from property '" + propertyName + "', value '" + valueStr + "'. Using default " + defaultValue, e);
+			}
+		}
+		return defaultValue;
+	}
+
+	/**
+	 * 从系统属性或属性文件中读取长整数配置
+	 */
+	public static long readLongProperty(String propertyName, long defaultValue, LogBackendFactory defaultBackendFactoryForLogging) {
+		String valueStr = readStringProperty(propertyName, null, defaultBackendFactoryForLogging);
+		if (valueStr != null) {
+			try {
+				return Long.parseLong(valueStr);
+			} catch (NumberFormatException e) {
+				logWarning(defaultBackendFactoryForLogging,
+						"Could not parse long from property '" + propertyName + "', value '" + valueStr + "'. Using default " + defaultValue, e);
+			}
+		}
+		return defaultValue;
 	}
 }

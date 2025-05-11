@@ -2,7 +2,11 @@ package com.j256.simplelogging.backend;
 
 import com.j256.simplelogging.Level;
 import com.j256.simplelogging.LogBackend;
+import com.j256.simplelogging.LogBackendFactory;
+import com.j256.simplelogging.LoggerConstants;
+import com.j256.simplelogging.PropertyUtils;
 import com.j256.simplelogging.event.LogEvent;
+import com.j256.simplelogging.backend.NullLogBackend.NullLogBackendFactory;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
@@ -27,13 +31,33 @@ public class HighPerformanceFileLogBackend implements LogBackend, java.io.Closea
     private final ExecutorService logExecutorService;
     private final LogEventConsumer logEventConsumer;
     private Writer logWriter; // 用于写入日志
-    private String logFilePath = "hplogger-output.log"; // 默认日志文件路径，后续会改为可配置
-    // Default values for batching, to be made configurable in Module 5
-    private final int configuredBatchSize = 200;       // e.g., process 200 events per batch
-    private final long configuredFlushIntervalMillis = 5000;  // e.g., flush every 5 seconds
+    private String logFilePath; // 日志文件路径，从配置读取
+    private final int configuredBatchSize; // 批量大小，从配置读取
+    private final long configuredFlushIntervalMillis; // 刷新间隔，从配置读取
 
     public HighPerformanceFileLogBackend(String classLabel) {
         this.loggerName = classLabel;
+
+        // Get a default LogBackendFactory for PropertyUtils to log warnings, if any.
+        // Using NullLogBackendFactory to avoid cycles if this backend itself is being configured.
+        LogBackendFactory propertyUtilsLoggingFactory = NullLogBackendFactory.getSingleton();
+
+        // 从配置中读取参数
+        this.logFilePath = PropertyUtils.readStringProperty(
+                LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY,
+                LoggerConstants.HIGH_PERF_LOG_FILE_DEFAULT,
+                propertyUtilsLoggingFactory);
+
+        this.configuredBatchSize = PropertyUtils.readIntProperty(
+                LoggerConstants.HIGH_PERF_BATCH_SIZE_PROPERTY,
+                LoggerConstants.HIGH_PERF_BATCH_SIZE_DEFAULT,
+                propertyUtilsLoggingFactory);
+
+        this.configuredFlushIntervalMillis = PropertyUtils.readLongProperty(
+                LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_PROPERTY,
+                LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_DEFAULT,
+                propertyUtilsLoggingFactory);
+
         openFile(); // 初始化 logWriter
         this.logEventQueue = new ConcurrentLinkedQueue<>();
         

@@ -8,6 +8,10 @@ import com.j256.simplelogging.backend.HighPerformanceFileLogBackend;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.io.File;
+import com.j256.simplelogging.LoggerConstants;
+import com.j256.simplelogging.PropertyUtils;
 
 public class ModuleOneTest {
 
@@ -77,5 +81,87 @@ public class ModuleOneTest {
         logger.warn("BatchFlushTest: Final message after sleep.");
         System.out.println("BatchFlushTest: Woke up from sleep. Test ending.");
         Thread.sleep(500); // Allow shutdown hook and final flushes
+    }
+
+    @Test
+    public void testConfigurationLoadingViaSystemProperties() throws Exception {
+        // 定义测试用的配置值
+        String testLogFilePath = "target/test-logs/system-property-config.log";
+        int testBatchSize = 300;
+        long testFlushInterval = 6000L;
+
+        // 保存原始系统属性值
+        String originalLogFilePath = System.getProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY);
+        String originalBatchSize = System.getProperty(LoggerConstants.HIGH_PERF_BATCH_SIZE_PROPERTY);
+        String originalFlushInterval = System.getProperty(LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_PROPERTY);
+
+        try {
+            // 设置测试配置值作为系统属性
+            System.setProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY, testLogFilePath);
+            System.setProperty(LoggerConstants.HIGH_PERF_BATCH_SIZE_PROPERTY, String.valueOf(testBatchSize));
+            System.setProperty(LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_PROPERTY, String.valueOf(testFlushInterval));
+
+            // 清除 LoggerFactory 缓存并获取一个新的 Logger 实例
+            LoggerFactory.setLogBackendFactory(null);
+            Logger logger = LoggerFactory.getLogger("ConfigTestSysProp");
+
+            // 使用反射递归查找父类的方法获取 LogBackend 实例
+            Method getLogBackendMethod = null;
+            Class<?> clazz = logger.getClass(); // 从 Logger 类开始查找
+            while (clazz != null) {
+                try {
+                    getLogBackendMethod = clazz.getDeclaredMethod("getLogBackend");
+                    break; // 方法找到，跳出循环
+                } catch (NoSuchMethodException e) {
+                    clazz = clazz.getSuperclass(); // 在父类中继续查找
+                }
+            }
+            assertNotNull("getLogBackend method should be found in Logger or its superclasses", getLogBackendMethod);
+            getLogBackendMethod.setAccessible(true);
+            LogBackend logBackend = (LogBackend) getLogBackendMethod.invoke(logger);
+            assertTrue(logBackend instanceof HighPerformanceFileLogBackend);
+            HighPerformanceFileLogBackend hpBackend = (HighPerformanceFileLogBackend) logBackend;
+
+            // 使用反射访问并断言字段值
+            Field logFilePathField = HighPerformanceFileLogBackend.class.getDeclaredField("logFilePath");
+            logFilePathField.setAccessible(true);
+            assertEquals(testLogFilePath, logFilePathField.get(hpBackend));
+
+            Field configuredBatchSizeField = HighPerformanceFileLogBackend.class.getDeclaredField("configuredBatchSize");
+            configuredBatchSizeField.setAccessible(true);
+            assertEquals(testBatchSize, configuredBatchSizeField.getInt(hpBackend)); // 使用 getInt 获取 int 字段
+
+            Field configuredFlushIntervalMillisField = HighPerformanceFileLogBackend.class.getDeclaredField("configuredFlushIntervalMillis");
+            configuredFlushIntervalMillisField.setAccessible(true);
+            assertEquals(testFlushInterval, configuredFlushIntervalMillisField.getLong(hpBackend)); // 使用 getLong 获取 long 字段
+
+            // 记录一条测试日志
+            logger.info("Test log message for system property configuration.");
+            Thread.sleep(200); // 短暂休眠以确保日志有机会被处理和写入
+        } finally {
+            // 恢复原始系统属性值
+            if (originalLogFilePath != null) {
+                System.setProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY, originalLogFilePath);
+            } else {
+                System.clearProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY);
+            }
+            if (originalBatchSize != null) {
+                System.setProperty(LoggerConstants.HIGH_PERF_BATCH_SIZE_PROPERTY, originalBatchSize);
+            } else {
+                System.clearProperty(LoggerConstants.HIGH_PERF_BATCH_SIZE_PROPERTY);
+            }
+            if (originalFlushInterval != null) {
+                System.setProperty(LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_PROPERTY, originalFlushInterval);
+            } else {
+                System.clearProperty(LoggerConstants.HIGH_PERF_FLUSH_INTERVAL_PROPERTY);
+            }
+
+            // 清除缓存
+            PropertyUtils.clearProperties();
+            LoggerFactory.setLogBackendFactory(null);
+
+            // 删除测试生成的日志文件
+            new File(testLogFilePath).delete();
+        }
     }
 } 
