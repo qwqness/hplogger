@@ -73,7 +73,7 @@ public abstract class BaseLogger {
 	/**
 	 * Get the underlying log backend implementation for testing purposes.
 	 */
-	protected LogBackend getLogBackend() {
+	public LogBackend getLogBackend() {
 		return backend;
 	}
 

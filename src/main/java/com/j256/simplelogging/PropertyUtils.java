@@ -238,7 +238,7 @@ public class PropertyUtils {
 			LogBackend backend = factory.createLogBackend(PropertyUtils.class.getName());
 			if (t == null) {
 				backend.log(Level.WARNING, message);
-			} else {
+		} else {
 				backend.log(Level.WARNING, message, t);
 			}
 		}

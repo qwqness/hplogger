@@ -3,8 +3,10 @@ package com.j256.simplelogging.HPLtesting;
 import com.j256.simplelogging.Logger;
 import com.j256.simplelogging.LoggerFactory;
 import com.j256.simplelogging.LogBackend;
+import com.j256.simplelogging.LogBackendFactory;
 import com.j256.simplelogging.BaseLogger;
 import com.j256.simplelogging.backend.HighPerformanceFileLogBackend;
+import com.j256.simplelogging.backend.HighPerformanceFileLogBackendFactory;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import java.lang.reflect.Method;
@@ -12,6 +14,28 @@ import java.lang.reflect.Field;
 import java.io.File;
 import com.j256.simplelogging.LoggerConstants;
 import com.j256.simplelogging.PropertyUtils;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import org.junit.After;
+import org.junit.Before;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
+import com.j256.simplelogging.Level;
 
 public class ModuleOneTest {
 
@@ -19,6 +43,13 @@ public class ModuleOneTest {
     public void testHighPerformanceBackendIsLoaded() throws Exception {
         // 清除任何先前设置的工厂
         LoggerFactory.setLogBackendFactory(null);
+        
+        // 设置日志文件路径
+        System.setProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY, "target/test-logs/test.log");
+        
+        // 强制使用高性能后端工厂
+        LogBackendFactory factory = new HighPerformanceFileLogBackendFactory();
+        LoggerFactory.setLogBackendFactory(factory);
         
         // 获取 Logger 实例
         Logger logger = LoggerFactory.getLogger(ModuleOneTest.class);
@@ -36,7 +67,14 @@ public class ModuleOneTest {
     }
 
     @Test
-    public void testHighPerformanceBackendLogsToConsole() {
+    public void testHighPerformanceBackendLogsToConsole() throws Exception {
+        // 设置日志文件路径
+        System.setProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY, "target/test-logs/console-test.log");
+        
+        // 强制使用高性能后端工厂
+        LogBackendFactory factory = new HighPerformanceFileLogBackendFactory();
+        LoggerFactory.setLogBackendFactory(factory);
+        
         // 获取 Logger 实例
         Logger logger = LoggerFactory.getLogger("ConsoleOutputTest");
         
@@ -57,7 +95,13 @@ public class ModuleOneTest {
 
     @Test
     public void testBatchAndTimedFlush() throws Exception {
-        LoggerFactory.setLogBackendFactory(null); // Ensure our factory is picked up
+        // 设置日志文件路径
+        System.setProperty(LoggerConstants.HIGH_PERF_LOG_FILE_PROPERTY, "target/test-logs/batch-test.log");
+        
+        // 强制使用高性能后端工厂
+        LogBackendFactory factory = new HighPerformanceFileLogBackendFactory();
+        LoggerFactory.setLogBackendFactory(factory);
+        
         Logger logger = LoggerFactory.getLogger("BatchFlushTest");
         int batchSizeTriggerCount = 250; // configuredBatchSize is 200
         long flushInterval = 5000; // configuredFlushIntervalMillis is 5000ms
@@ -85,6 +129,16 @@ public class ModuleOneTest {
 
     @Test
     public void testConfigurationLoadingViaSystemProperties() throws Exception {
+        // 确保测试日志目录存在
+        File testLogDir = new File("target/test-logs");
+        if (!testLogDir.exists()) {
+            testLogDir.mkdirs();
+        }
+
+        // 设置系统属性
+        System.setProperty("com.j256.simplelogging.level", "DEBUG");
+        System.setProperty("com.j256.simplelogging.logfile", "target/test-logs/test.log");
+
         // 定义测试用的配置值
         String testLogFilePath = "target/test-logs/system-property-config.log";
         int testBatchSize = 300;
