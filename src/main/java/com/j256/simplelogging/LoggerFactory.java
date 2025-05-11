@@ -1,6 +1,7 @@
 package com.j256.simplelogging;
 
 import java.util.Arrays;
+import java.lang.reflect.InvocationTargetException;
 
 import com.j256.simplelogging.backend.NullLogBackend.NullLogBackendFactory;
 
@@ -220,7 +221,7 @@ public class LoggerFactory {
 
 		try {
 			// construct the factory by calling the no-arg contructor
-			Object instance = clazz.newInstance();
+			Object instance = clazz.getDeclaredConstructor().newInstance();
 			return (LogBackendFactory) instance;
 		} catch (Exception e) {
 			LogBackend backend = defaultBackendFactory.createLogBackend(LoggerFactory.class.getName());

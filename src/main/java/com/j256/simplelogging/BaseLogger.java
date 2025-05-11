@@ -1,6 +1,7 @@
 package com.j256.simplelogging;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 
 /**
  * Base class which does the logging to the backend.
@@ -72,7 +73,7 @@ public abstract class BaseLogger {
 	/**
 	 * Get the underlying log backend implementation for testing purposes.
 	 */
-	LogBackend getLogBackend() {
+	protected LogBackend getLogBackend() {
 		return backend;
 	}
 

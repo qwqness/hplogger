@@ -3,6 +3,7 @@ package com.j256.simplelogging;
 import com.j256.simplelogging.backend.ConsoleLogBackend.ConsoleLogBackendFactory;
 import com.j256.simplelogging.backend.LocalLogBackend.LocalLogBackendFactory;
 import com.j256.simplelogging.backend.NullLogBackend.NullLogBackendFactory;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  * Default logging backends that are supported. The class names are specified as strings in the constructor so there is
@@ -138,7 +139,8 @@ public enum LogBackendType implements LogBackendFactory {
 	private LogBackendFactory detectFactory(String factoryClassName) {
 		try {
 			// sometimes the constructor works but it's not fully wired
-			LogBackendFactory factory = (LogBackendFactory) Class.forName(factoryClassName).newInstance();
+			Class<?> clazz = Class.forName(factoryClassName);
+			LogBackendFactory factory = (LogBackendFactory) clazz.getDeclaredConstructor().newInstance();
 			// we may really need to use the class before we see issues
 			factory.createLogBackend("test").isLevelEnabled(Level.INFO);
 			if (factory.isAvailable()) {
