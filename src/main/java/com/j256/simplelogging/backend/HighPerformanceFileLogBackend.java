@@ -15,6 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * 高性能文件日志后端实现，使用异步队列和消费者线程处理日志事件。
@@ -26,6 +28,9 @@ public class HighPerformanceFileLogBackend implements LogBackend, java.io.Closea
     private final LogEventConsumer logEventConsumer;
     private Writer logWriter; // 用于写入日志
     private String logFilePath = "hplogger-output.log"; // 默认日志文件路径，后续会改为可配置
+    // Default values for batching, to be made configurable in Module 5
+    private final int configuredBatchSize = 200;       // e.g., process 200 events per batch
+    private final long configuredFlushIntervalMillis = 5000;  // e.g., flush every 5 seconds
 
     public HighPerformanceFileLogBackend(String classLabel) {
         this.loggerName = classLabel;
@@ -47,7 +52,7 @@ public class HighPerformanceFileLogBackend implements LogBackend, java.io.Closea
         this.logExecutorService = Executors.newSingleThreadExecutor(daemonThreadFactory);
         
         // 创建并启动消费者
-        this.logEventConsumer = new LogEventConsumer(this.logEventQueue, this.logWriter);
+        this.logEventConsumer = new LogEventConsumer(this.logEventQueue, this.logWriter, this.configuredBatchSize, this.configuredFlushIntervalMillis);
         this.logExecutorService.submit(this.logEventConsumer);
 
         // 添加关闭钩子
@@ -143,11 +148,17 @@ public class HighPerformanceFileLogBackend implements LogBackend, java.io.Closea
     private static class LogEventConsumer implements Runnable {
         private final ConcurrentLinkedQueue<LogEvent> eventQueue;
         private final Writer writer;
+        private final int batchSize;
+        private final long flushIntervalMillis;
         private volatile boolean running = true;
+        private long lastFlushTimeMillis;
 
-        public LogEventConsumer(ConcurrentLinkedQueue<LogEvent> eventQueue, Writer writer) {
+        public LogEventConsumer(ConcurrentLinkedQueue<LogEvent> eventQueue, Writer writer, int batchSize, long flushIntervalMillis) {
             this.eventQueue = eventQueue;
             this.writer = writer;
+            this.batchSize = batchSize > 0 ? batchSize : 100; // Default to 100 if batchSize is not positive
+            this.flushIntervalMillis = flushIntervalMillis > 0 ? flushIntervalMillis : 1000; // Default to 1000ms if not positive
+            this.lastFlushTimeMillis = System.currentTimeMillis(); // Initialize last flush time
         }
 
         public void stopProcessing() {
@@ -158,56 +169,71 @@ public class HighPerformanceFileLogBackend implements LogBackend, java.io.Closea
         public void run() {
             try {
                 System.out.println(Thread.currentThread().getName() + " starting to consume log events.");
-                while (this.running || !this.eventQueue.isEmpty()) {
+                List<LogEvent> batch = new ArrayList<>(this.batchSize);
+                
+                while (this.running || !this.eventQueue.isEmpty() || !batch.isEmpty()) {
                     LogEvent event = this.eventQueue.poll();
                     if (event != null) {
-                        if (this.writer != null) { // 检查 writer 是否有效
-                            try {
-                                // 1. 格式化时间戳
-                                String formattedTimestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
-                                        .format(new java.util.Date(event.getTimestamp()));
+                        batch.add(event);
+                    }
 
-                                // 2. 获取日志代码
-                                String logCode = (event.getLogCode() == null) ? "NO_CODE" : event.getLogCode();
+                    long currentTimeMillis = System.currentTimeMillis();
+                    boolean batchFull = batch.size() >= this.batchSize;
+                    boolean flushIntervalReached = !batch.isEmpty() && (currentTimeMillis - this.lastFlushTimeMillis >= this.flushIntervalMillis);
+                    boolean shuttingDownWithData = !this.running && this.eventQueue.isEmpty() && !batch.isEmpty();
 
-                                // 3. 获取日志消息
-                                String message = event.getMessage();
-
-                                // 4. 获取异常信息
-                                String throwableInfo = "";
-                                if (event.getThrowable() != null) {
-                                    throwableInfo = " :: " + event.getThrowable().getClass().getSimpleName();
-                                    if (event.getThrowable().getMessage() != null) {
-                                        throwableInfo += " - " + event.getThrowable().getMessage();
+                    if (batchFull || flushIntervalReached || shuttingDownWithData) {
+                        if (!batch.isEmpty()) {
+                            // --- BEGIN processBatch logic (inlined) ---
+                            if (this.writer != null) {
+                                try {
+                                    StringBuilder batchContentBuilder = new StringBuilder(batch.size() * 100); // Initial capacity estimate
+                                    for (LogEvent logEv : batch) {
+                                        String formattedTimestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS")
+                                                                .format(new java.util.Date(logEv.getTimestamp()));
+                                        String logCode = (logEv.getLogCode() == null) ? "NO_CODE" : logEv.getLogCode();
+                                        String message = logEv.getMessage();
+                                        String throwableInfo = "";
+                                        if (logEv.getThrowable() != null) {
+                                            throwableInfo = " :: " + logEv.getThrowable().getClass().getSimpleName();
+                                            if (logEv.getThrowable().getMessage() != null) {
+                                                throwableInfo += " - " + logEv.getThrowable().getMessage();
+                                            }
+                                        }
+                                        batchContentBuilder.append(String.format("%s,%s,%s%s%n",
+                                                formattedTimestamp, logCode, message, throwableInfo));
                                     }
+                                    this.writer.write(batchContentBuilder.toString());
+                                    this.writer.flush(); // Flush after writing a batch
+                                } catch (IOException e) {
+                                    System.err.println(Thread.currentThread().getName() +
+                                            " consumer thread failed to write log batch to file: " + e.getMessage());
+                                } finally {
+                                    batch.clear(); // Prepare for next batch
+                                    this.lastFlushTimeMillis = System.currentTimeMillis(); // Update last flush time
                                 }
-
-                                // 5. 组装最终的日志行
-                                String lineToLog = String.format("%s,%s,%s%s%n",
-                                        formattedTimestamp,
-                                        logCode,
-                                        message,
-                                        throwableInfo
-                                );
-
-                                this.writer.write(lineToLog);
-                            } catch (IOException e) {
+                            } else {
                                 System.err.println(Thread.currentThread().getName() +
-                                        " consumer thread failed to write log event to file: " + e.getMessage());
+                                        " consumer thread: logWriter is null, cannot write batch to file. Batch size: " + batch.size() + ". Discarding batch.");
+                                batch.clear(); // Discard batch if writer is null
+                                this.lastFlushTimeMillis = System.currentTimeMillis();
                             }
-                        } else {
-                            System.err.println(Thread.currentThread().getName() +
-                                    " consumer thread: logWriter is null, cannot write to file. Event: " + event.getMessage());
+                            // --- END processBatch logic ---
                         }
-                    } else if (this.running) {
+                    }
+
+                    // If queue is empty, not shutting down, and batch is empty (or just flushed), then sleep.
+                    if (event == null && this.running && batch.isEmpty()) {
                         try {
-                            Thread.sleep(10);
+                            // Sleep for a fraction of the flush interval, or a minimum, to be responsive
+                            long sleepTime = Math.min(100L, this.flushIntervalMillis / 10);
+                            if (sleepTime <= 0) sleepTime = 10L; // Ensure positive sleep time
+                            Thread.sleep(sleepTime);
                         } catch (InterruptedException e) {
-                            this.running = false;
-                            Thread.currentThread().interrupt();
-                            System.out.println(Thread.currentThread().getName() 
-                                    + " consumer thread interrupted during sleep, stopping.");
-                            break;
+                            this.running = false; // Stop running if interrupted
+                            Thread.currentThread().interrupt(); // Preserve interrupt status
+                            System.out.println(Thread.currentThread().getName() +
+                                    " consumer thread interrupted during sleep, preparing to stop.");
                         }
                     }
                 }

@@ -50,4 +50,32 @@ public class ModuleOneTest {
         }
         System.out.println("ModuleOneTest: Main test thread [" + Thread.currentThread().getName() + "] woke up.");
     }
+
+    @Test
+    public void testBatchAndTimedFlush() throws Exception {
+        LoggerFactory.setLogBackendFactory(null); // Ensure our factory is picked up
+        Logger logger = LoggerFactory.getLogger("BatchFlushTest");
+        int batchSizeTriggerCount = 250; // configuredBatchSize is 200
+        long flushInterval = 5000; // configuredFlushIntervalMillis is 5000ms
+        long testSleepTime = flushInterval + 2000; // Sleep a bit longer than flush interval
+
+        System.out.println("BatchFlushTest: Generating " + batchSizeTriggerCount + " messages to trigger batch flush...");
+        for (int i = 0; i < batchSizeTriggerCount; i++) {
+            logger.info("Batch message # " + (i + 1));
+            if (i == 199) { // Just before configuredBatchSize might trigger
+                Thread.sleep(10); // Small pause to ensure distinct timestamps if needed
+            }
+        }
+        System.out.println("BatchFlushTest: Finished generating messages. Sleeping for " + testSleepTime + "ms to observe timed flush if any pending...");
+
+        // At this point, the first batch of ~200 should have been written due to batchSize.
+        // Any remaining (e.g., 50) should be flushed by interval.
+
+        Thread.sleep(testSleepTime);
+
+        // Log a final message after the sleep, this might form a new small batch flushed on shutdown
+        logger.warn("BatchFlushTest: Final message after sleep.");
+        System.out.println("BatchFlushTest: Woke up from sleep. Test ending.");
+        Thread.sleep(500); // Allow shutdown hook and final flushes
+    }
 } 
