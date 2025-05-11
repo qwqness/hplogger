@@ -1,0 +1,34 @@
+# Maven build output
+target/
+
+# Log files
+*.log
+
+# IntelliJ IDEA project files
+.idea/
+*.iml
+*.iws
+
+# Eclipse project files
+.project
+.classpath
+.settings/
+bin/
+
+# VS Code project files
+.vscode/
+
+# Netbeans project files
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Compiled class files (though 'target/' usually covers this for Maven)
+*.class
+
+# OS generated files
+.DS_Store
+Thumbs.db 

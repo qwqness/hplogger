@@ -1,0 +1,72 @@
+3.1: 3/20/2024
+	* Fixed logback backend by changing logback and slf4j versions.
+
+3.0: 3/2/2024
+	* Improved configurability including backend discovery order and global log level.
+	* Added support for all configurations in the simplelogging.properties properties file.
+	* Moved the LocalLog configuration to the central properties file.
+	* Added support for properties file to choose a backend and the backend order.
+	* Added support for the global log level in the properties file including OFF and NULL.
+	* Added detection of the no-op logging to slf4j backend.
+	* Added isAvailable() check to the LogBackendFactory to allow additional per-factory availability checks.
+	* Pushed SLF4J and COMMONS_LOGGING down the backend list since we should detect logback or log4j2 before.
+	* Bumped versions of logback and log4j2.
+
+2.3: 1/31/2024
+	* Added appendMsg() to the fluent logger context to allow building the log message dynamically. 
+	* Did a better job of detaching from log4j v1 for testing of reflection backend.
+	* Bumped the version of logback for security reasons.
+
+2.2: 3/4/2023
+	* Removed import on Android Log in the LoggerConstants.java that should not have been there.
+	* Increased the version of log4j v2 for security reasons.  Should have realized that in 2.1.  Sigh.
+
+2.1: 2/26/2023
+	* Finally moving to Java version 8 because of dependency version requirements.  Maybe overdue.
+	* Bumped the versions of log4j2 to 2.13.2 to resolve some security issues.
+	* This is a 2.1 release and not 2.0 because there are no logic changes here.
+
+1.11: 2/26/2023
+	* Add the ability to configure a log factory using the com.j256.simplelogger.backend system property.
+	* Moved critical constants to LoggerConstants.java to make it easier to tweak if you are copying into your project.
+	* Renamed LogArgumentCreator.createArg() to be createLogArg() to better mirror behavior.
+	* Added FluentLogger.atTrace(), atDebug(), etc. instead of atLevel(Level.TRACE), atLevel(Level.INFO), etc..
+	* Changed log4j v1 to be reflection based to remove any hint of a dependency.  Won't be called unless in classpath.
+
+1.10: 11/15/2022
+	* Added fluent-logging pattern where you can build a log message with method chaining.
+
+1.9: 1/8/2022
+	* Changed the behavior of messages with {} but no arguments.  The {} will be shown.  Matches other logging backends.
+	* Add LogArgumentCreator for not having to use toString() to expand an argument.
+
+1.8: 12/31/2021
+	* Changed the backend class discovery to be relative to LocalLogBackend.  Makes copying to other projects easier.
+	* Updated optional log4j2 dependency to 2.17.1 and updated other optional dependency versions.
+	* Added arguments that handle variable arguments with Args method name suffixes.
+
+1.7: 12/20/2021
+	* Bumped the version of the _optional_ dependency on log4j2 to version 2.17.0.
+
+1.6: 6/22/2021
+	* Fixed bug in the AndroidLogBackend around the logger class name.
+
+1.5: 2/20/2021
+	* Made all of the log backend dependencies optional instead of provided.
+	* Delay any warnings messages about unknown classes until the backend type is actually used.
+
+1.4: 2/20/2021
+	* Added console and AWS Lambda logging backends.
+
+1.3: 1/1/2021
+	* Moved the LogBackend implementations that write to the 3rd party loggers to a subpackage.
+
+1.2: 1/1/2021
+	* Add logback direct handling using logback-classic.
+	* Refactored some of the handling to reduce reflection overhead.
+	* Moved some inner classes up to be full classes.
+
+1.1: 12/16/2020
+	* Brought the code over from ORMLite into it's own repo.
+	* Did some wholesale renaming of stuff to rename the confusing Log to LogBackend.
+	* Added a 4th argument to the logger methods.
